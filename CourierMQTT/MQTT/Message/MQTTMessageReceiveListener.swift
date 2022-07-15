@@ -1,5 +1,6 @@
 import CourierCore
 import Foundation
+import RxSwift
 
 final class MqttMessageReceiverListener: IMessageReceiveListener {
     private var publishSubject: PublishSubject<MQTTPacket>

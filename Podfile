@@ -6,9 +6,19 @@ def courier_pods
   pod 'ReachabilitySwift', '5.0.0'
 end
 
+def rx_pods
+  pod 'RxSwift', '5.1.1'
+end
+
+target 'CourierCore' do
+  use_frameworks!
+  rx_pods
+end
+
 target 'CourierMQTT' do
   use_frameworks!
   courier_pods
+  rx_pods
 end
 
 target 'CourierProtobuf' do
