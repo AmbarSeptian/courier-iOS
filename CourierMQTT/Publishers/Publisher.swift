@@ -18,8 +18,9 @@ public final class PassthroughSubject<Output, Failure: Error>: AnyPublisher<Outp
     public override func filter(
         predicate: @escaping (Output) -> Bool
     ) -> AnyPublisher<Output, Failure> {
+        
         let observable = self.observable
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .filter(predicate)
         return PassthroughSubject(observable: observable, sinkInitiated: sinkInitiated, sinkCancelled: sinkCancelled)
     }
@@ -29,7 +30,7 @@ public final class PassthroughSubject<Output, Failure: Error>: AnyPublisher<Outp
         transform: @escaping (Output) -> Result
     ) -> AnyPublisher<Result, Failure> {
         let observable = self.observable
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .map(transform)
         return PassthroughSubject<Result, Failure>(observable: observable, sinkInitiated: sinkInitiated, sinkCancelled: sinkCancelled)
     }
@@ -39,7 +40,7 @@ public final class PassthroughSubject<Output, Failure: Error>: AnyPublisher<Outp
         receiveValue: @escaping (Output) -> Void
     ) -> AnyCancellable {
         let disposable = observable
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .subscribe { event in
                 guard let value = event.element else { return }
                 receiveValue(value)
@@ -82,7 +83,7 @@ public final class CurrentValueSubject<Output, Failure: Error> {
         predicate: @escaping (Output) -> Bool
     ) -> AnyPublisher<Output, Failure> {
         let observable = behaviorSubject
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .filter(predicate)
         return PassthroughSubject(observable: observable, sinkInitiated: sinkInitiated, sinkCancelled: sinkCancelled)
     }
@@ -92,7 +93,7 @@ public final class CurrentValueSubject<Output, Failure: Error> {
         transform: @escaping (Output) -> Result
     ) -> AnyPublisher<Result, Failure> {
         let observable = behaviorSubject
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .map(transform)
         return PassthroughSubject<Result, Failure>(observable: observable)
     }
@@ -102,7 +103,7 @@ public final class CurrentValueSubject<Output, Failure: Error> {
         receiveValue: @escaping (Output) -> Void
     ) -> AnyCancellable {
         let disposable = behaviorSubject
-            .observe(on: MainScheduler.asyncInstance)
+            .observeOn(MainScheduler.asyncInstance)
             .subscribe { event in
                 guard let value = event.element else { return }
                 receiveValue(value)
@@ -115,7 +116,7 @@ public final class CurrentValueSubject<Output, Failure: Error> {
     public func eraseToAnyPublisher() -> AnyPublisher<Output, Failure> {
          let observable = behaviorSubject
              .asObservable()
-             .observe(on: MainScheduler.asyncInstance)
+             .observeOn(MainScheduler.asyncInstance)
         return PassthroughSubject(observable: observable, sinkInitiated: sinkInitiated, sinkCancelled: sinkCancelled)
      }
     

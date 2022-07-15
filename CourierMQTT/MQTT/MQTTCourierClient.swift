@@ -2,6 +2,7 @@ import CourierCore
 import Reachability
 import UIKit
 import MQTTClientGJ
+import RxSwift
 
 class MQTTCourierClient: CourierClient {
     var client: IMQTTClient!
@@ -46,6 +47,11 @@ class MQTTCourierClient: CourierClient {
 
     var connectionStatePublisher: AnyPublisher<ConnectionState, Never> {
         PassthroughSubject(observable: connectionSubject.asObservable())
+    }
+
+    // NEW IMPLEMENTATION with RxSwift
+    var connectionStateObservable: Observable<ConnectionState> {
+        connectionSubject.asObservable()
     }
 
     var hasExistingSession: Bool {
@@ -198,6 +204,28 @@ class MQTTCourierClient: CourierClient {
                                   sinkInitiated: self.generateSinkInitiatedClosure(topic: topic),
                                   sinkCancelled: self.generateSinkCancelledClosure(topic: topic))
     }
+    
+    func messageObservable<D>(topic: String) -> Observable<D> {
+        printSubscribeDebug(topic: topic)
+
+        let observable: Observable<D> = client.subscribedMessageStream
+            .do(onSubscribe: { [weak self] in
+                self?.generateSinkInitiatedClosure(topic: topic)
+            }, onDispose: { [weak self] in
+                self?.generateSinkCancelledClosure(topic: topic)
+            })
+            .filter { $0.topic == topic }
+            .compactMap { [weak self] packet in
+                guard let self = self else { return nil }
+                if let message: D = self.messageAdaptersCoordinator.decodeMessage(packet.data) {
+                    return message
+                }
+                self.courierEventHandler.onEvent(.messageReceiveFailure(topic: topic, error: CourierError.decodingError.asNSError, sizeBytes: packet.data.count))
+                return nil
+            }
+        
+        return observable
+    }
 
     func messagePublisher<D, E>(topic: String, errorDecodeHandler: @escaping ((E) -> Error)) -> AnyPublisher<Result<D, NSError>, Never> {
         printSubscribeDebug(topic: topic)
@@ -220,6 +248,33 @@ class MQTTCourierClient: CourierClient {
                                   sinkInitiated: self.generateSinkInitiatedClosure(topic: topic),
                                   sinkCancelled: self.generateSinkCancelledClosure(topic: topic))
     }
+    
+    func messageObservable<D, E>(topic: String, errorDecodeHandler: @escaping ((E) -> Error)) -> Observable<Result<D, NSError>> {
+        printSubscribeDebug(topic: topic)
+        
+        let observable: Observable<Result<D, NSError>> = client
+            .subscribedMessageStream
+            .do(onSubscribe: { [weak self] in
+                self?.generateSinkInitiatedClosure(topic: topic)
+            }, onDispose: { [weak self] in
+                self?.generateSinkCancelledClosure(topic: topic)
+            })
+            .filter { $0.topic == topic }
+            .compactMap { [weak self] (packet) -> Result<D, NSError>? in
+                guard let self = self else { return nil }
+                if let model: D = self.messageAdaptersCoordinator.decodeMessage(packet.data) {
+                    return .success(model)
+                } else if let decodedError: E = self.messageAdaptersCoordinator.decodeMessage(packet.data) {
+                    return .failure(errorDecodeHandler(decodedError) as NSError)
+                } else {
+                    self.courierEventHandler.onEvent(.messageReceiveFailure(topic: topic, error: CourierError.decodingError.asNSError, sizeBytes: packet.data.count))
+                    return nil
+                }
+            }
+        
+        return observable
+    }
+
 
     func messagePublisher() -> AnyPublisher<Message, Never> {
         let observable: Observable<Message> = client.subscribedMessageStream
@@ -228,6 +283,17 @@ class MQTTCourierClient: CourierClient {
                                   sinkInitiated: { [weak self] in self?.client.messageReceiverListener.handlePersistedMessages() }
         )
     }
+    
+    func messageObservable() -> Observable<Message> {
+        let observable: Observable<Message> = client.subscribedMessageStream
+            .do(onSubscribe: { [weak self] in
+                self?.client.messageReceiverListener.handlePersistedMessages()
+            })
+            .map { Message(data: $0.data, topic: $0.topic, qos: $0.qos) }
+        
+        return observable
+    }
+
 
     func publishMessage<E>(_ data: E, topic: String, qos: QoS) throws {
         guard client.hasExistingSession else {
