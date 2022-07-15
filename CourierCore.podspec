@@ -15,4 +15,5 @@ Pod::Spec.new do |c|
 	}
     c.swift_version   = '5.3'
     c.source_files    = 'CourierCore/**/*.{h,m,swift}'
+    c.dependency 'RxSwift', '5.1.1'
 end
